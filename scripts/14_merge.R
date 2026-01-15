@@ -7,8 +7,8 @@
 #
 # Outputs:
 #   analysis/rna_counts.csv
-#   analysis/mapped_reads_by_source.csv
-#   analysis/percentage_mapped_by_source.csv
+#   analysis/mapped_reads_by_biotype_2.csv
+#   analysis/percentage_mapped_by_biotype_2.csv
 #
 ################################################################################
 
@@ -31,8 +31,8 @@ LOG_FILE     <- file.path(ROOT_DIR, "log/rrna_bowtie1/read_counts.csv")
 dir_create(ANALYSIS_DIR)
 
 OUT_COUNTS   <- file.path(ANALYSIS_DIR, "rna_counts.csv")
-OUT_READS    <- file.path(ANALYSIS_DIR, "mapped_reads_by_source.csv")
-OUT_PCT      <- file.path(ANALYSIS_DIR, "percentage_mapped_by_source.csv")
+OUT_READS    <- file.path(ANALYSIS_DIR, "mapped_reads_by_biotype_2.csv")
+OUT_PCT      <- file.path(ANALYSIS_DIR, "percentage_mapped_by_biotype_2.csv")
 
 message("📂 Pipeline root: ", ROOT_DIR)
 
@@ -156,7 +156,7 @@ mapped_long <- combined %>%
     names_to = "Sample",
     values_to = "Mapped_Reads"
   ) %>%
-  group_by(Sample, source) %>%
+  group_by(Sample, biotype_2) %>%
   summarise(
     Mapped_Reads = sum(Mapped_Reads, na.rm = TRUE),
     .groups = "drop"
@@ -164,9 +164,9 @@ mapped_long <- combined %>%
 
 reads_wide <- mapped_long %>%
   pivot_wider(
-    names_from  = source,
+    names_from  = biotype_2,
     values_from = Mapped_Reads,
-    names_glue  = "{source}_reads"
+    names_glue  = "{biotype_2}_reads"
   )
 
 reads_final <- orig_reads %>%
@@ -186,7 +186,7 @@ reads_final$unmapped_reads <-
   rowSums(reads_final[read_cols])
 
 write_csv(reads_final, OUT_READS)
-message("💾 mapped_reads_by_source.csv written")
+message("💾 mapped_reads_by_biotype_2.csv written")
 
 # ================================
 # Per-sample percentages (WIDE)
@@ -194,7 +194,7 @@ message("💾 mapped_reads_by_source.csv written")
 
 pct_final <- reads_final
 
-# compute per-source percentages
+# compute per-biotype percentages
 for (col in read_cols) {
   pct_col <- sub("_reads$", "_pct", col)
   pct_final[[pct_col]] <-
@@ -217,4 +217,4 @@ pct_final <- pct_final %>%
   )
 
 write_csv(pct_final, OUT_PCT)
-message("💾 percentage_mapped_by_source.csv written")
+message("💾 percentage_mapped_by_biotype_2.csv written")
