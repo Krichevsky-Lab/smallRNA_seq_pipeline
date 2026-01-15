@@ -50,9 +50,7 @@ tRNA fragments are classified following the tRAX framework (PMID: 40444975) base
 
 Edit the run list at `scripts/runlist.txt`.
 
-The current run list contains two test runs:
-- SRR1103937
-- SRR1103939
+The current run list contains 12 SRR codes for samples from GSE48552.
 
 Run from the repository root: `bash scripts/pipeline.sh [--qc]`.
 
@@ -64,12 +62,22 @@ Running the pipeline with the default run list will produce results in the exist
 
 Key output files include:
 - rna_counts.csv
-- mapped_reads_by_source.csv
-- percentage_mapped_by_source.csv
+- mapped_reads_by_biotype_2.csv
+- percentage_mapped_by_biotype2.csv
  
 The primary output `rna_counts.csv` is a raw count table generated directly from the sequential alignment workflow. This table includes all detected RNA species and tRNA-derived fragments prior to any downstream filtering, normalization, or statistical analysis.
 
 Additional filtering (e.g., low-count filtering, biotype selection, sample exclusion) should be applied depending on the analysis context.
+
+#  Sample Analysis Step
+
+This script (`15_analysis.R`) performs a global differential expression analysis using DESeq2 after collapsing tRF isodecoders. Differential expression is computed across all retained RNA features using sample metadata provided in `scripts/metadata.csv`.
+
+**Figure 1h** displays only nuclear and mitochondrial tRFs extracted from the global DESeq2 results
+
+**Figure 1i** shows a principal component analysis (PCA) of tRNA and mitochondrial tRNA expression.
+
+This script is provided as a reproducible example of the analysis workflow used to generate key figures in the manuscript.
 
 
 
