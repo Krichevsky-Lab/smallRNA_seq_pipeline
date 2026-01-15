@@ -1,6 +1,6 @@
 # smallRNA_seq_pipeline
 
-Pipeline for reanalysis of public small RNA-seq datasets, with an emphasis on tRNA fragment profiling.
+Pipeline for reanalysis of public **single-end (unpaired) small RNA-seq datasets**, with an emphasis on tRNA fragment profiling.
 
 ## Overview
 
@@ -8,15 +8,17 @@ This pipeline runs end-to-end automatically. The only required user input is a l
 
 Once started, the pipeline builds reference annotations and alignment indexes, downloads data, trims adapters, performs sequential alignments, classifies tRNA fragments, merges counts, and outputs analysis-ready tables.
 
-The pipeline was developed and tested on **human** brain small RNA-seq dataset GSE48552 and should be applicable to other small RNA-seq datasets.
+The pipeline was developed and tested on **human brain small RNA-seq dataset GSE48552** and should be applicable to other single-end small RNA-seq datasets with appropriate modifications, as outlined below.
 
 > **Note:**
+>
 > - Reference files included in this repository are currently configured for **human RNA**.
 > - The pipeline itself is **species-agnostic** and will run correctly with references from other organisms, provided that appropriate reference **FASTA (`.fa`) files** are supplied and the species identifier in the scripts is updated (e.g., changing `human` → `mouse`).
 > - Alignment indexes are generated automatically from the provided `.fa` files during the `00_make_reference.sh` step.
 > - The adapter trimming step (`02_trim.sh`) is currently configured for **TruSeq small RNA libraries** and retains reads **≥15 nt**. This step may need to be adjusted depending on how the library was constructed (e.g., adapter sequences, read length distribution) and the overall quality of the reads.
 > - Enabling the `--qc` flag runs **FastQC and MultiQC** on the output of each pipeline step (e.g., raw reads after download, trimmed reads after adapter removal, and files generated after each alignment step). When analyzing a new dataset, it is recommended to first run the pipeline on a small set of test samples with `--qc`, then proceed with the full dataset or adjust parameters as needed.
 > - Each pipeline step can also be run independently by executing the corresponding script in `scripts/`, provided its required inputs are available. For example:
+>
 >   ```bash
 >   bash scripts/1_download.sh [--qc]
 >   ```
@@ -24,6 +26,7 @@ The pipeline was developed and tested on **human** brain small RNA-seq dataset G
 ## Alignment strategy
 
 Following adapter trimming and contaminant removal (UniVec), reads are sequentially aligned to:
+
 - ribosomal RNA (rRNA)
 - transfer RNA (tRNA), followed by tRNA fragment (tRF) classification
 - miRNA, snoRNA, and other small RNAs
@@ -40,7 +43,8 @@ Using this multi-step alignment workflow, approximately **>90% of reads** are su
 
 ## tRNA fragment classification
 
-tRNA fragments are classified following the tRAX framework (PMID: 40444975) based on read position relative to mature tRNA boundaries, including the 3′ CCA tail.
+tRNA fragments are classified following the tRAX framework from the Lowe lab (PMID: 40444975, 39952700) based on read position relative to mature tRNA boundaries, including the 3′ CCA tail.
+
 - reads within 10 nucleotides of the 5′ end are classified as 5′ tRFs
 - reads within 10 nucleotides of the 3′ end are classified as 3′ tRFs
 - reads mapping to internal regions and not overlapping either boundaries are classified as internal tRFs
@@ -48,38 +52,54 @@ tRNA fragments are classified following the tRAX framework (PMID: 40444975) base
 
 ## Usage
 
+> **Important:** Reference FASTA files are stored using [Git LFS](https://git-lfs.com/). After cloning the repository, run `git lfs pull` to download the actual reference files before running the pipeline.
+
 Edit the run list at `input/runlist.txt`.
 
 The current run list contains 12 SRR codes for samples from GSE48552.
 
 Run from the repository root: `bash scripts/pipeline.sh [--qc]`.
 
-To run in docker: 
+To run in docker, first build the image:
 
 ```bash
-docker run --rm -it
--v "$PWD/input:/opt/smallRNA_seq_pipeline/input"
--v "$PWD/analysis:/opt/smallRNA_seq_pipeline/analysis"
-smallrna-pipeline
-bash scripts/pipeline.sh
+docker build -t smallrna-pipeline .
+```
+
+Then run the pipeline:
+
+```bash
+docker run --rm -it \
+    -v "$PWD/input:/opt/smallRNA_seq_pipeline/input" \
+    -v "$PWD/reference:/opt/smallRNA_seq_pipeline/reference" \
+    -v "$PWD/analysis:/opt/smallRNA_seq_pipeline/analysis" \
+    -v "$PWD/raw_data:/opt/smallRNA_seq_pipeline/raw_data" \
+    -v "$PWD/trimmed:/opt/smallRNA_seq_pipeline/trimmed" \
+    -v "$PWD/aligned:/opt/smallRNA_seq_pipeline/aligned" \
+    -v "$PWD/unmapped:/opt/smallRNA_seq_pipeline/unmapped" \
+    -v "$PWD/counts:/opt/smallRNA_seq_pipeline/counts" \
+    -v "$PWD/log:/opt/smallRNA_seq_pipeline/log" \
+    smallrna-pipeline \
+    bash scripts/pipeline.sh
 ```
 
 ## Output
 
-Final results are written to `analysis/`. 
+Final results are written to `analysis/`.
 
 Running the pipeline with the default run list will produce results in the existing `analysis/` folder.
 
 Key output files include:
+
 - rna_counts.csv
 - mapped_reads_by_biotype_2.csv
 - percentage_mapped_by_biotype2.csv
- 
+
 The primary output `rna_counts.csv` is a raw count table generated directly from the sequential alignment workflow. This table includes all detected RNA species and tRNA-derived fragments prior to any downstream filtering, normalization, or statistical analysis.
 
 Additional filtering (e.g., low-count filtering, biotype selection, sample exclusion) should be applied depending on the analysis context.
 
-#  Sample Analysis Step
+## Sample Analysis Step
 
 This script (`15_analysis.R`) performs a global differential expression analysis using DESeq2 after collapsing tRF isodecoders. Differential expression is computed across all retained RNA features using sample metadata provided in `input/metadata.csv`.
 
@@ -89,13 +109,12 @@ This script (`15_analysis.R`) performs a global differential expression analysis
 
 This script is provided as a reproducible example of the analysis workflow used to generate key figures in the manuscript.
 
-
-
 ## Dependencies
 
 Tested on Linux (Ubuntu / WSL).
 
 Required software:
+
 - bash (GNU bash 5.2.21)
 - standard Unix utilities (awk, sed, grep, sort, cut, gzip, coreutils)
 - wget
@@ -109,6 +128,6 @@ Required software:
 - R v4.3.3
 
 Required R packages:
+
 - tidyverse
 - data.table
-
