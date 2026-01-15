@@ -4,7 +4,7 @@ Pipeline for reanalysis of public small RNA-seq datasets, with an emphasis on tR
 
 ## Overview
 
-This pipeline runs end-to-end automatically. The only required user input is a list of SRA run accessions (SRR codes).
+This pipeline runs end-to-end automatically. The only required user input is a list of SRA run accessions (SRR codes) in runlist.txt in input folder. The metadata.csv file in the input folder is only required for the sample analysis step.
 
 Once started, the pipeline builds reference annotations and alignment indexes, downloads data, trims adapters, performs sequential alignments, classifies tRNA fragments, merges counts, and outputs analysis-ready tables.
 
@@ -48,11 +48,21 @@ tRNA fragments are classified following the tRAX framework (PMID: 40444975) base
 
 ## Usage
 
-Edit the run list at `scripts/runlist.txt`.
+Edit the run list at `input/runlist.txt`.
 
 The current run list contains 12 SRR codes for samples from GSE48552.
 
 Run from the repository root: `bash scripts/pipeline.sh [--qc]`.
+
+To run in docker: 
+
+```bash
+docker run --rm -it
+-v "$PWD/input:/opt/smallRNA_seq_pipeline/input"
+-v "$PWD/analysis:/opt/smallRNA_seq_pipeline/analysis"
+smallrna-pipeline
+bash scripts/pipeline.sh
+```
 
 ## Output
 
@@ -71,7 +81,7 @@ Additional filtering (e.g., low-count filtering, biotype selection, sample exclu
 
 #  Sample Analysis Step
 
-This script (`15_analysis.R`) performs a global differential expression analysis using DESeq2 after collapsing tRF isodecoders. Differential expression is computed across all retained RNA features using sample metadata provided in `scripts/metadata.csv`.
+This script (`15_analysis.R`) performs a global differential expression analysis using DESeq2 after collapsing tRF isodecoders. Differential expression is computed across all retained RNA features using sample metadata provided in `input/metadata.csv`.
 
 **Figure 1h** displays only nuclear and mitochondrial tRFs extracted from the global DESeq2 results
 

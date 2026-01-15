@@ -27,7 +27,7 @@ suppressPackageStartupMessages({
 # ==============================================================================
 
 counts_file <- "analysis/rna_counts.csv"
-meta_file   <- "scripts/metadata.csv"
+meta_file   <- "input/metadata.csv"
 
 results_dir <- "analysis/results"
 plots_dir   <- "analysis/plots"

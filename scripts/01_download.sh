@@ -9,7 +9,7 @@ set -euo pipefail
 #   bash 1_download.sh
 #
 # Inputs:
-#   - runlist.txt
+#   - input/runlist.txt
 #
 # Outputs:
 #   - raw_data/*.fastq.gz
@@ -21,10 +21,10 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-RUNLIST="${SCRIPT_DIR}/runlist.txt"
+RUNLIST="${SCRIPT_DIR}/../input/runlist.txt"
 
 if [[ ! -f "$RUNLIST" ]]; then
-  echo "❌ runlist.txt not found in $SCRIPT_DIR"
+  echo "❌ runlist.txt not found at $RUNLIST"
   exit 1
 fi
 
