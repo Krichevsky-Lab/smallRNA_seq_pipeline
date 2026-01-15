@@ -7,8 +7,9 @@ shopt -s nullglob
 #
 # DESCRIPTION:
 #   Orchestrates execution of the AD_pipeline from reference building through
-#   final count matrix merging. Steps are executed sequentially unless a subset
-#   is specified. This script dispatches step-specific scripts located in scripts/.
+#   final count matrix merging and downstream statistical analysis.
+#   Steps are executed sequentially unless a subset is specified. This script
+#   dispatches step-specific scripts located in scripts/.
 #
 #   Each processing step is implemented as a standalone script and can be run
 #   independently, provided its required inputs and references are available.
@@ -27,6 +28,7 @@ shopt -s nullglob
 #   - counts/<class>_<aligner>/            : Per-sample and merged count matrices
 #   - log/<class>_<aligner>/               : Per-sample logs and read summaries
 #   - qc/<class>_<aligner>/                : FastQC and MultiQC reports (when --qc)
+#   - analysis/                            : Differential expression, PCA, plots
 #
 # QC:
 #   - When invoked with `--qc`, supported steps run FastQC on intermediate FASTQ
@@ -53,6 +55,7 @@ shopt -s nullglob
 #   12  longRNA alignment
 #   13  longRNA rescue (Bowtie2)
 #   14  Merge and annotate count matrices (R)
+#   15  Differential expression, volcano plots, and PCA (R)
 #
 # USAGE:
 #   bash scripts/pipeline.sh [--qc] [--steps N-M | n1,n2,n3]
@@ -103,9 +106,10 @@ declare -A STEP_SCRIPTS=(
     [12]="12_align_longrna.sh"
     [13]="13_align_longrna_rescue.sh"
     [14]="14_merge.R"
+    [15]="15_analysis.R"
 )
 
-ALL_STEPS=({0..14})
+ALL_STEPS=({0..15})
 
 ### --------------------
 ### Step selection parser
