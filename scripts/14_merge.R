@@ -125,7 +125,7 @@ for (f in single_counts) {
 
 combined <- bind_rows(tables)
 
-# Mt-tRF normalization
+# Mt-tRF renaming
 combined <- combined %>%
   mutate(
     biotype_2 = ifelse(
