@@ -1,0 +1,38 @@
+[project]
+name = "smallrna-seq-pipeline"
+version = "0.1.0"
+description = "Tiered cascade smallRNA-seq alignment pipeline (mouse/human)"
+channels = ["bioconda", "conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+# ── Alignment ──────────────────────────────────────────────────────────────
+bowtie    = ">=1.3.1"
+bowtie2   = ">=2.5.1"
+samtools  = ">=1.17"
+subread   = ">=2.0.6"      # provides featureCounts
+
+# ── Trimming & QC ──────────────────────────────────────────────────────────
+cutadapt  = ">=4.4"
+fastqc    = ">=0.12.1"
+multiqc   = ">=1.19"
+
+# ── Download ───────────────────────────────────────────────────────────────
+wget      = ">=1.20"
+
+# ── R runtime ──────────────────────────────────────────────────────────────
+r-base    = ">=4.3"
+
+# Bioconductor
+bioconductor-rsamtools       = ">=2.16"
+bioconductor-genomicranges   = ">=1.52"
+bioconductor-iranges         = ">=2.34"    # GenomicRanges dependency
+
+# CRAN
+r-dplyr   = ">=1.1"
+r-readr   = ">=2.1"
+r-tidyr   = ">=1.3"
+r-stringr = ">=1.5"
+r-purrr   = ">=1.0"
+r-tibble  = ">=3.2"
+r-fs      = ">=1.6"
