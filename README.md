@@ -4,133 +4,121 @@ Pipeline for reanalysis of public **single-end (unpaired) small RNA-seq datasets
 
 ## Overview
 
-This pipeline runs end-to-end automatically. The only required user input is a list of SRA run accessions (SRR codes) in runlist.txt in input folder. The metadata.csv file in the input folder is only required for the sample analysis step.
+This pipeline runs end-to-end automatically. The only required user input is a list of SRA run accessions (SRR codes) in `input/runlist.txt`. The `input/metadata.csv` file is only required for the sample analysis step.
 
 Once started, the pipeline builds reference annotations and alignment indexes, downloads data, trims adapters, performs sequential alignments, classifies tRNA fragments, merges counts, and outputs analysis-ready tables.
 
-The pipeline was developed and tested on **human brain small RNA-seq dataset GSE48552** and should be applicable to other single-end small RNA-seq datasets with appropriate modifications, as outlined below.
+The pipeline was developed and tested on the following publicly available datasets:
 
-> **Note:**
+| GEO | Species | Tissue | Library Kit | Platform | Read length | PMID |
+|-----|---------|--------|-------------|----------|-------------|------|
+| GSE48552 | Human | Prefrontal cortex | TruSeq Small RNA (Illumina) | HiSeq 2000 | 50 nt | 24014289 |
+| GSE111279 | Mouse (C57BL/6) | Brain hemisphere (ages 2–30 mo) | TruSeq Small RNA (Illumina) | HiSeq 2500 | 50 nt | — |
+| GSE217458 | Mouse (C57BL/6JN) | 16 organs (ages 1–27 mo, 10 timepoints) | MGIEasy Small RNA Library Prep (MGI SP-960) | BGISEQ-500RS | 50 nt | 37106037 |
+| GSE282205 | Mouse (C57BL/6JN) | 15 brain regions (ages 3–28 mo) | MGIEasy Small RNA Library Prep (MGI SP-960) | BGISEQ-500 | 50 nt | 40382330 |
+| E-MTAB-12731 | Human | Frontal lobe, post-mortem (FTD + controls) | NEXTflex Small RNA-seq v3 (Bioo Scientific) | NextSeq 550 | 50 nt | 38040703 |
+| GSE131695 | Human | CSF (24 h post-TBI vs. control) | NEBNext Small RNA Library Prep (NEB) | NextSeq 550 | 75 nt | 32094409 |
+
+The pipeline is **species-agnostic** and should be applicable to other single-end small RNA-seq datasets with appropriate modifications, as outlined below.
+
+> **Notes:**
 >
-> - Reference files included in this repository are currently configured for **human RNA**.
-> - The pipeline itself is **species-agnostic** and will run correctly with references from other organisms, provided that appropriate reference **FASTA (`.fa`) files** are supplied and the species identifier in the scripts is updated (e.g., changing `human` → `mouse`).
-> - Alignment indexes are generated automatically from the provided `.fa` files during the `00_make_reference.sh` step.
-> - The adapter trimming step (`02_trim.sh`) is currently configured for **TruSeq small RNA libraries** and retains reads **≥15 nt**. This step may need to be adjusted depending on how the library was constructed (e.g., adapter sequences, read length distribution) and the overall quality of the reads.
-> - Enabling the `--qc` flag runs **FastQC and MultiQC** on the output of each pipeline step (e.g., raw reads after download, trimmed reads after adapter removal, and files generated after each alignment step). When analyzing a new dataset, it is recommended to first run the pipeline on a small set of test samples with `--qc`, then proceed with the full dataset or adjust parameters as needed.
-> - Each pipeline step can also be run independently by executing the corresponding script in `scripts/`, provided its required inputs are available. For example:
+> - Reference files included in this repository support both **human** and **mouse**. The species is selected at runtime via `--species mouse` or `--species human`.
+> - Alignment indexes are generated automatically from the provided `.fa` files during `00_make_reference.sh`.
+> - The adapter trimming configuration in `02_trim.sh` is currently set for **TruSeq Small RNA libraries** (GSE48552, GSE111279) and retains reads **≥15 nt**. Other library kits require updating the adapter sequences in `02_trim.sh` before running. Read length thresholds may also need adjustment.
+> - Enabling `--qc` runs **FastQC and MultiQC** on the output of each pipeline step. When analyzing a new dataset, it is recommended to first run on a small test set with `--qc`, then proceed with the full dataset.
+> - Each pipeline step can be run independently, provided its required inputs are available. For example:
 >
 >   ```bash
->   bash scripts/1_download.sh [--qc]
+>   bash alignment_scripts/04_align_rrna.sh --species mouse [--qc]
 >   ```
 
 ## Alignment strategy
 
 Following adapter trimming and contaminant removal (UniVec), reads are sequentially aligned to:
 
-- ribosomal RNA (rRNA)
-- transfer RNA (tRNA), followed by tRNA fragment (tRF) classification
-- miRNA, snoRNA, and other small RNAs
-- piRNA
-- protein-coding mRNA (longest transcripts only), long noncoding RNA (lncRNA), and miRNA hairpin references
+1. Ribosomal RNA (rRNA)
+2. Transfer RNA (tRNA), followed by tRNA fragment (tRF) classification
+3. miRNA, snoRNA, and other small RNAs
+4. piRNA
+5. Protein-coding mRNA (longest transcripts only), lncRNA, and miRNA hairpin references
 
 Reference annotations are derived from RNAcentral (rRNA), GtRNAdb (nuclear tRNA), miRBase (miRNAs), piRBase (piRNAs), and Ensembl (mt-tRNA, snRNA, snoRNA, other ncRNAs, mRNA, and lncRNA).
 
-UniVec filtering is performed using Bowtie (v1) only. All other alignment steps use a two-stage Bowtie-based strategy, with Bowtie (v1) as the primary aligner and Bowtie2 used to rescue reads that fail Bowtie1 alignment due to short overhangs or end mismatches.
+UniVec filtering uses Bowtie (v1) only. All other alignment steps use a two-stage strategy: Bowtie (v1) as the primary aligner, followed by Bowtie2 to rescue reads that fail Bowtie1 alignment due to short overhangs or end mismatches. The tRNA rescue step uses relaxed mismatch/gap penalties to recover reads carrying tRNA modifications (m1A, m3C, pseudouridine, inosine) that cause RT misincorporations.
 
-Reads are assigned using a best-alignment strategy. When a read maps equally well to multiple features within the same alignment step, **counts are assigned fractionally** to avoid overcounting, and output count values may therefore be non-integer.
+When a read maps equally well to multiple features within the same step, **counts are assigned fractionally** (NH tag). Output count values may therefore be non-integer.
 
-Using this multi-step alignment workflow, approximately **>90% of reads** are successfully mapped across samples.
+Using this workflow, an average of **90–95%** of reads were successfully mapped across samples; mapping rates were lower in CSF samples (GSE131695; 50-75%)
 
 ## tRNA fragment classification
 
-tRNA fragments are classified following the tRAX framework from the Lowe lab (PMID: 40444975, 39952700) based on read position relative to mature tRNA boundaries, including the 3′ CCA tail.
+tRNA fragments are classified following the tRAX framework (PMID: 40444975, 39952700) based on read position relative to mature tRNA boundaries, including the 3′ CCA tail:
 
-- reads within 10 nucleotides of the 5′ end are classified as 5′ tRFs
-- reads within 10 nucleotides of the 3′ end are classified as 3′ tRFs
-- reads mapping to internal regions and not overlapping either boundaries are classified as internal tRFs
-- reads spanning both boundaries are classified as full-length tRNAs (mostly not detected due to the short read length of <50 nt of small RNA-seq libraries)
+| Class | Rule |
+|-------|------|
+| 5′-tRF | read start within 10 nt of the tRNA 5′ end |
+| 3′-tRF | read end within 10 nt of the tRNA 3′ end |
+| internal-tRF | read does not overlap either boundary |
+| FL-tRNA | read spans both boundaries (rare at <50 nt read length) |
 
 ## Usage
 
-> **Important:** Reference FASTA files are stored using [Git LFS](https://git-lfs.com/). After cloning the repository, run `git lfs pull` to download the actual reference files before running the pipeline.
+> **Important:** Reference FASTA files are stored using [Git LFS](https://git-lfs.com/). After cloning, run `git lfs pull` to download them before running the pipeline.
 
-Edit the run list at `input/runlist.txt`.
+**1. Edit the run list:**
 
-The current run list contains 12 SRR codes for samples from GSE48552.
-
-Run from the repository root: `bash scripts/pipeline.sh [--qc]`.
-
-To run in docker, first build the image:
-
-```bash
-docker build -t smallrna-pipeline .
+```
+input/runlist.txt   # one SRR accession per line
 ```
 
-Then run the pipeline:
+**2. Run the full pipeline:**
 
 ```bash
-docker run --rm -it \
-    -v "$PWD/input:/opt/smallRNA_seq_pipeline/input" \
-    -v "$PWD/reference:/opt/smallRNA_seq_pipeline/reference" \
-    -v "$PWD/analysis:/opt/smallRNA_seq_pipeline/analysis" \
-    -v "$PWD/raw_data:/opt/smallRNA_seq_pipeline/raw_data" \
-    -v "$PWD/trimmed:/opt/smallRNA_seq_pipeline/trimmed" \
-    -v "$PWD/aligned:/opt/smallRNA_seq_pipeline/aligned" \
-    -v "$PWD/unmapped:/opt/smallRNA_seq_pipeline/unmapped" \
-    -v "$PWD/counts:/opt/smallRNA_seq_pipeline/counts" \
-    -v "$PWD/log:/opt/smallRNA_seq_pipeline/log" \
-    smallrna-pipeline \
-    bash scripts/pipeline.sh
+bash alignment_scripts/pipeline.sh --species mouse [--qc]
+bash alignment_scripts/pipeline.sh --species human [--qc]
 ```
+
+The current `runlist.txt` contains SRR codes for the GSE111279 mouse dataset.
 
 ## Output
 
-Final results are written to `analysis/`.
+Final results are written to `analysis/data/`.
 
-Running the pipeline with the default run list will produce results in the existing `analysis/` folder.
+| File | Description |
+|------|-------------|
+| `rna_counts.csv` | Raw count table (all RNA species and tRFs) |
+| `alignment_stats.csv` | Per-sample mapped reads by RNA biotype |
+| `alignment_pct.csv` | Per-sample mapping percentages by RNA biotype |
+| `pipeline_runtime.csv` | Per-step runtime log |
 
-Key output files include:
-
-- rna_counts.csv
-- mapped_reads_by_biotype_2.csv
-- percentage_mapped_by_biotype2.csv
-
-The primary output `rna_counts.csv` is a raw count table generated directly from the sequential alignment workflow. This table includes all detected RNA species and tRNA-derived fragments prior to any downstream filtering, normalization, or statistical analysis.
-
-Additional filtering (e.g., low-count filtering, biotype selection, sample exclusion) should be applied depending on the analysis context.
-
-## Sample Analysis Step
-
-This script (`15_analysis.R`) performs a global differential expression analysis using DESeq2 after collapsing tRF isodecoders. Differential expression is computed across all retained RNA features using sample metadata provided in `input/metadata.csv`.
-
-**Figure 1h** displays only nuclear and mitochondrial tRFs extracted from the global DESeq2 results
-
-**Figure 1i** shows a principal component analysis (PCA) of tRNA and mitochondrial tRNA expression.
-
-This script is provided as a reproducible example of the analysis workflow used to generate key figures in the manuscript.
+`rna_counts.csv` is generated directly from the alignment workflow, prior to any filtering, normalization, or statistical analysis. Downstream filtering (low-count removal, biotype selection, sample exclusion) should be applied based on the analysis context.
 
 ## Dependencies
 
-Tested on Linux (Ubuntu / WSL).
+Tested on **Linux (Ubuntu / WSL2)**. Install all dependencies at once using [pixi](https://pixi.sh):
 
-Required software:
+```bash
+pixi install
+pixi shell   # activates the environment
+```
 
-- bash (GNU bash 5.2.21)
-- standard Unix utilities (awk, sed, grep, sort, cut, gzip, coreutils)
-- wget
-- SRA Toolkit (fasterq-dump 3.0.3)
-- cutadapt
-- FastQC
-- MultiQC
-- Bowtie v1.3.1
-- Bowtie2 v2.5.2
-- samtools v1.19.2
-- R v4.3.3
+The `pixi.toml` in the repository root pins all required tools:
 
-Required R packages:
+| Tool | Purpose |
+|------|---------|
+| bowtie ≥1.3.1 | Primary aligner (rRNA, tRNA, small RNA, piRNA, longRNA) |
+| bowtie2 ≥2.5.1 | Rescue aligner |
+| samtools ≥1.17 | BAM processing |
+| subread ≥2.0.6 | featureCounts quantification |
+| cutadapt ≥4.4 | Adapter trimming |
+| fastqc ≥0.12.1 | Per-sample QC |
+| multiqc ≥1.19 | Aggregated QC reports |
+| wget ≥1.20 | SRA FASTQ download |
+| R ≥4.3 + Bioconductor/CRAN packages | tRF classification, count merging, analysis |
 
-- tidyverse
-- data.table
+Standard Unix utilities (awk, gzip, sort, etc.) are assumed to be available in the environment.
 
 ## License
+
 This project is licensed under the MIT License.
